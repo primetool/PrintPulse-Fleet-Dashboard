@@ -1,0 +1,6 @@
+{
+  "name": "PrintPulse Central Fleet Dashboard",
+  "description": "Centralized telemetry and print management dashboard aggregating real-time print jobs, fleet health, cost analytics, and toner levels across multiple computers and workstations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
