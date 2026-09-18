@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "build:standalone": "npm run build && esbuild server.ts --bundle --platform=node --format=cjs --external:vite --outfile=dist/server-standalone.cjs",
+    "build:exe": "npm run build:standalone && PKG_CACHE_PATH=~/.pkg-cache npx pkg@5.8.1 dist/server-standalone.cjs --target node18-win-x64 --output PrintPulse.exe",
     "start": "node dist/server.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
@@ -26,13 +28,14 @@
     "vite": "^6.2.3"
   },
   "devDependencies": {
+    "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
+    "@yao-pkg/pkg": "^6.22.0",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
-    "vite": "^6.2.3",
-    "@types/express": "^4.17.21"
+    "vite": "^6.2.3"
   }
 }

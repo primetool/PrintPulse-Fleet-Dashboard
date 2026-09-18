@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
@@ -2381,7 +2382,15 @@ lpoptions -p HP_LaserJet_Enterprise_M608 -l | grep -i "Duplex"
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), "dist");
+    // Robust path resolution for packaged standalone binaries, relative runs, and production containers
+    const candidatePaths = [
+      path.join(process.cwd(), "dist"),
+      path.join(__dirname, "dist"),
+      path.join(__dirname, "..", "dist"),
+      __dirname,
+    ];
+    const distPath = candidatePaths.find(p => fs.existsSync(path.join(p, "index.html"))) || path.join(process.cwd(), "dist");
+
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
@@ -2390,6 +2399,12 @@ lpoptions -p HP_LaserJet_Enterprise_M608 -l | grep -i "Duplex"
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`PrintPulse Hub Server running on http://localhost:${PORT}`);
+    if (process.platform === "win32" && !process.env.NO_AUTO_OPEN) {
+      try {
+        const { exec } = require("child_process");
+        exec(`start http://localhost:${PORT}`);
+      } catch {}
+    }
   });
 }
 
