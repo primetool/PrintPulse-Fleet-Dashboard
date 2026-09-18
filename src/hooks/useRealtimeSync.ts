@@ -206,6 +206,18 @@ export function useRealtimeSync({ onNewAlert, onNewJob, onEmailSent }: UseRealti
               setPrinters((prev) =>
                 prev.map((p) => (p.id === data.id ? data : p))
               );
+            } else if (type === 'PRINTER_DELETED') {
+              setPrinters((prev) => prev.filter((p) => p.id !== data.id));
+            } else if (type === 'PRINTER_ADDED') {
+              setPrinters((prev) => [data.printer, ...prev.filter((p) => p.id !== data.printer.id)]);
+            } else if (type === 'ALL_DEMO_PRINTERS_CLEARED') {
+              if (data.printers) {
+                setPrinters(data.printers);
+              } else {
+                setPrinters((prev) => prev.filter((p) => !p.isDemo && !p.id.startsWith('prn-0')));
+              }
+            } else if (type === 'PRINTERS_RESTORED') {
+              if (data.printers) setPrinters(data.printers);
             } else if (type === 'NODE_HEARTBEAT' || type === 'NODE_UPDATED') {
               setNodes((prev) =>
                 prev.map((n) => (n.id === data.node?.id ? data.node : n))
@@ -297,19 +309,36 @@ export function useRealtimeSync({ onNewAlert, onNewJob, onEmailSent }: UseRealti
     }
   };
 
+  const getAdminHeaders = (): Record<string, string> => {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('printpulse_admin_token');
+      if (token) {
+        headers['x-admin-token'] = token;
+      }
+    }
+    return headers;
+  };
+
   const updateAlertSettings = async (newSettings: Partial<AlertSettings>) => {
     try {
       const res = await fetch('/api/printpulse/alerts/settings', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAdminHeaders(),
         body: JSON.stringify(newSettings),
       });
       if (res.ok) {
         const data = await res.json();
         setAlertSettings(data.settings);
+        return { success: true };
       }
-    } catch (err) {
+      const errData = await res.json().catch(() => ({}));
+      return { success: false, error: errData.error || 'Failed to update alert settings' };
+    } catch (err: any) {
       console.error(err);
+      return { success: false, error: err.message };
     }
   };
 
@@ -317,15 +346,19 @@ export function useRealtimeSync({ onNewAlert, onNewJob, onEmailSent }: UseRealti
     try {
       const res = await fetch('/api/printpulse/alerts/rules', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAdminHeaders(),
         body: JSON.stringify({ rules: newRules }),
       });
       if (res.ok) {
         const data = await res.json();
         setRules(data.rules);
+        return { success: true };
       }
-    } catch (err) {
+      const errData = await res.json().catch(() => ({}));
+      return { success: false, error: errData.error || 'Failed to update alert rules' };
+    } catch (err: any) {
       console.error(err);
+      return { success: false, error: err.message };
     }
   };
 
@@ -353,7 +386,7 @@ export function useRealtimeSync({ onNewAlert, onNewJob, onEmailSent }: UseRealti
     try {
       const res = await fetch('/api/printpulse/alerts/simulate-condition', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAdminHeaders(),
         body: JSON.stringify({ condition }),
       });
       if (res.ok) {
@@ -361,9 +394,163 @@ export function useRealtimeSync({ onNewAlert, onNewJob, onEmailSent }: UseRealti
         fetchOverview(true);
         return { success: true, alert: data.alert };
       }
-    } catch (err) {
+      const errData = await res.json().catch(() => ({}));
+      return { success: false, error: errData.error || 'Failed to trigger simulation' };
+    } catch (err: any) {
       console.error(err);
-      return { success: false, error: err };
+      return { success: false, error: err.message };
+    }
+  };
+
+  const deletePrinter = async (printerId: string) => {
+    try {
+      const headers = getAdminHeaders();
+      delete headers['Content-Type'];
+      const res = await fetch(`/api/printpulse/printers/${printerId}`, {
+        method: 'DELETE',
+        headers,
+      });
+      if (res.ok) {
+        setPrinters((prev) => prev.filter((p) => p.id !== printerId));
+        fetchOverview(true);
+        return { success: true };
+      }
+      const data = await res.json().catch(() => ({}));
+      return { success: false, error: data.error || 'Failed to delete printer' };
+    } catch (err: any) {
+      console.error(err);
+      return { success: false, error: err.message };
+    }
+  };
+
+  const clearDemoPrinters = async () => {
+    try {
+      const res = await fetch('/api/printpulse/printers/clear-demo', {
+        method: 'POST',
+        headers: getAdminHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPrinters(data.printers || []);
+        fetchOverview(true);
+        return { success: true, count: data.removedCount };
+      }
+      const data = await res.json().catch(() => ({}));
+      return { success: false, error: data.error || 'Failed to clear demo printers' };
+    } catch (err: any) {
+      console.error(err);
+      return { success: false, error: err.message };
+    }
+  };
+
+  const addPrinter = async (printerData: Partial<PrinterDevice>) => {
+    try {
+      const res = await fetch('/api/printpulse/printers', {
+        method: 'POST',
+        headers: getAdminHeaders(),
+        body: JSON.stringify(printerData),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPrinters((prev) => [data.printer, ...prev]);
+        fetchOverview(true);
+        return { success: true, printer: data.printer };
+      }
+      const data = await res.json().catch(() => ({}));
+      return { success: false, error: data.error || 'Failed to add printer' };
+    } catch (err: any) {
+      console.error(err);
+      return { success: false, error: err.message };
+    }
+  };
+
+  const restoreDemoPrinters = async () => {
+    try {
+      const res = await fetch('/api/printpulse/printers/restore-demo', {
+        method: 'POST',
+        headers: getAdminHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPrinters(data.printers || []);
+        fetchOverview(true);
+        return { success: true };
+      }
+      const data = await res.json().catch(() => ({}));
+      return { success: false, error: data.error || 'Failed to restore demo printers' };
+    } catch (err: any) {
+      console.error(err);
+      return { success: false, error: err.message };
+    }
+  };
+
+  const maintainPrinter = async (
+    printerId: string,
+    action: 'refill_toner' | 'reload_paper' | 'clear_jam' | 'full_service'
+  ) => {
+    try {
+      const res = await fetch(`/api/printpulse/printers/${printerId}/maintenance`, {
+        method: 'POST',
+        headers: getAdminHeaders(),
+        body: JSON.stringify({ action }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.printer) {
+          setPrinters((prev) => prev.map((p) => (p.id === printerId ? data.printer : p)));
+        }
+        fetchOverview(true);
+        return { success: true, printer: data.printer };
+      }
+      const data = await res.json().catch(() => ({}));
+      return { success: false, error: data.error || 'Maintenance action failed' };
+    } catch (err: any) {
+      console.error(err);
+      return { success: false, error: err.message };
+    }
+  };
+
+  const addNode = async (nodeData: Partial<ComputerNode>) => {
+    try {
+      const res = await fetch('/api/printpulse/nodes', {
+        method: 'POST',
+        headers: getAdminHeaders(),
+        body: JSON.stringify(nodeData),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.node) {
+          setNodes((prev) => [data.node, ...prev]);
+        }
+        fetchOverview(true);
+        return { success: true, node: data.node };
+      }
+      const data = await res.json().catch(() => ({}));
+      return { success: false, error: data.error || 'Failed to register workstation' };
+    } catch (err: any) {
+      console.error(err);
+      return { success: false, error: err.message };
+    }
+  };
+
+  const deleteNode = async (nodeId: string) => {
+    try {
+      const headers = getAdminHeaders();
+      delete headers['Content-Type'];
+      const res = await fetch(`/api/printpulse/nodes/${nodeId}`, {
+        method: 'DELETE',
+        headers,
+      });
+      if (res.ok) {
+        setNodes((prev) => prev.filter((n) => n.id !== nodeId));
+        fetchOverview(true);
+        return { success: true };
+      }
+      const data = await res.json().catch(() => ({}));
+      return { success: false, error: data.error || 'Failed to remove workstation' };
+    } catch (err: any) {
+      console.error(err);
+      return { success: false, error: err.message };
     }
   };
 
@@ -388,5 +575,13 @@ export function useRealtimeSync({ onNewAlert, onNewJob, onEmailSent }: UseRealti
     updateAlertRules,
     sendTestEmail,
     simulateCondition,
+    deletePrinter,
+    clearDemoPrinters,
+    addPrinter,
+    restoreDemoPrinters,
+    maintainPrinter,
+    addNode,
+    deleteNode,
   };
 }
+

@@ -20,6 +20,9 @@ import { GeminiChatbot } from './components/GeminiChatbot';
 import { ToastContainer, type ToastMessage } from './components/Toast';
 import { Sparkles, Bot, X, Maximize2 } from 'lucide-react';
 import { useRealtimeSync } from './hooks/useRealtimeSync';
+import { AdminAuthProvider, useAdminAuth } from './context/AdminAuthContext';
+import { AdminAuthModal } from './components/AdminAuthModal';
+import { ChangePinModal } from './components/ChangePinModal';
 import type { 
   FleetMetrics, 
   DepartmentMetric, 
@@ -31,7 +34,7 @@ import type {
   EmailNotificationLog,
 } from './types';
 
-export default function App() {
+function PrintPulseDashboard() {
   const [activeTab, setActiveTab] = useState<string>('overview');
   const [selectedJob, setSelectedJob] = useState<PrintJob | null>(null);
 
@@ -118,6 +121,13 @@ export default function App() {
     updateAlertRules,
     sendTestEmail,
     simulateCondition,
+    deletePrinter,
+    clearDemoPrinters,
+    addPrinter,
+    restoreDemoPrinters,
+    maintainPrinter,
+    addNode,
+    deleteNode,
   } = useRealtimeSync({
     onNewAlert: (alert: FleetAlert) => {
       addToast(
@@ -232,43 +242,60 @@ export default function App() {
 
   // Printer maintenance action
   const handlePerformMaintenance = async (printerId: string, action: string) => {
-    try {
-      const res = await fetch(`/api/printpulse/printers/${printerId}/maintenance`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
-      });
+    const res = await maintainPrinter(printerId, action as any);
+    if (res.success) {
+      addToast(
+        'Maintenance Complete',
+        `Successfully applied ${action.replace('_', ' ')} on ${res.printer?.name || 'printer'}`,
+        'success'
+      );
+    } else {
+      addToast('Maintenance Failed', res.error || 'Admin passcode authorization required', 'warning');
+    }
+  };
 
-      if (res.ok) {
-        const data = await res.json();
-        addToast(
-          'Maintenance Complete',
-          `Successfully applied ${action.replace('_', ' ')} on ${data.printer.name}`,
-          'success'
-        );
-      }
-    } catch (err) {
-      console.error(err);
-      addToast('Error', 'Maintenance action failed', 'warning');
+  // Printer handlers
+  const handleDeletePrinter = async (printerId: string, printerName: string) => {
+    const res = await deletePrinter(printerId);
+    if (res.success) {
+      addToast('Printer Removed', `"${printerName}" was removed from the fleet.`, 'success');
+    } else {
+      addToast('Deletion Failed', res.error || 'Failed to delete printer', 'warning');
+    }
+  };
+
+  const handleClearDemoPrinters = async () => {
+    const res = await clearDemoPrinters();
+    if (res.success) {
+      addToast('Demo Fleet Cleared', `Removed ${res.count || 'all'} demo printers. Fleet is now running in clean production mode.`, 'success');
+    } else {
+      addToast('Clear Failed', res.error || 'Failed to remove demo printers', 'warning');
+    }
+  };
+
+  const handleAddPrinter = async (printerData: Partial<PrinterDevice>) => {
+    const res = await addPrinter(printerData);
+    if (res.success) {
+      addToast('Printer Registered', `"${printerData.name}" has been added to the fleet.`, 'success');
+    } else {
+      addToast('Registration Failed', res.error || 'Failed to add printer', 'warning');
+    }
+  };
+
+  const handleRestoreDemoPrinters = async () => {
+    const res = await restoreDemoPrinters();
+    if (res.success) {
+      addToast('Demo Printers Restored', '5 sample demo printers restored to the fleet.', 'info');
     }
   };
 
   // Add workstation
   const handleAddWorkstation = async (data: any) => {
-    try {
-      const res = await fetch('/api/printpulse/nodes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-
-      if (res.ok) {
-        const result = await res.json();
-        addToast('Workstation Registered', `Added ${result.node.hostname} (${result.node.department}) to active fleet`, 'success');
-      }
-    } catch (err) {
-      console.error(err);
-      addToast('Error', 'Failed to register workstation', 'warning');
+    const res = await addNode(data);
+    if (res.success) {
+      addToast('Workstation Registered', `Added ${res.node?.hostname || 'workstation'} (${res.node?.department || 'fleet'}) to active fleet`, 'success');
+    } else {
+      addToast('Registration Failed', res.error || 'Admin passcode authorization required', 'warning');
     }
   };
 
@@ -384,6 +411,10 @@ export default function App() {
             jobs={allJobs.length > 0 ? allJobs : recentJobs}
             onPerformMaintenance={handlePerformMaintenance}
             onRefresh={() => fetchOverview(false)}
+            onDeletePrinter={handleDeletePrinter}
+            onClearDemoPrinters={handleClearDemoPrinters}
+            onAddPrinter={handleAddPrinter}
+            onRestoreDemoPrinters={handleRestoreDemoPrinters}
           />
         )}
 
@@ -548,7 +579,19 @@ export default function App() {
       {/* Toast notifications */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
+      {/* Admin Security PIN Verification and Change Modals */}
+      <AdminAuthModal />
+      <ChangePinModal />
+
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AdminAuthProvider>
+      <PrintPulseDashboard />
+    </AdminAuthProvider>
   );
 }
 

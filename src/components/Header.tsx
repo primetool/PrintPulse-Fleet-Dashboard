@@ -7,15 +7,21 @@ import {
   PlusCircle, 
   Play, 
   Pause, 
-  Terminal,
-  RefreshCw,
-  Cpu,
-  Bell,
-  Radio,
-  Wifi,
-  WifiOff
+  Terminal, 
+  RefreshCw, 
+  Cpu, 
+  Bell, 
+  Radio, 
+  Wifi, 
+  WifiOff,
+  Lock,
+  Unlock,
+  KeyRound,
+  ShieldCheck,
+  Shield
 } from 'lucide-react';
 import type { FleetMetrics, RealtimeSyncStatus } from '../types';
+import { useAdminAuth } from '../context/AdminAuthContext';
 
 interface HeaderProps {
   metrics: FleetMetrics | null;
@@ -48,6 +54,20 @@ export const Header: React.FC<HeaderProps> = ({
   unacknowledgedAlertsCount = 0,
   syncStatus,
 }) => {
+  const { isAdmin, lockAdmin, openAuthModal, openChangePinModal, requireAdminAction } = useAdminAuth();
+
+  const handleToggleSimulation = () => {
+    requireAdminAction(() => {
+      setIsSimulating(!isSimulating);
+    }, 'Admin authorization required to run continuous traffic simulation across workstations.');
+  };
+
+  const handleAddNode = () => {
+    requireAdminAction(() => {
+      onOpenAddModal();
+    }, 'Admin authorization required to register or deploy a new computer workstation.');
+  };
+
   const tabs = [
     { id: 'overview', label: 'Fleet Overview', icon: Activity },
     { 
@@ -145,13 +165,13 @@ export const Header: React.FC<HeaderProps> = ({
             {/* Auto Traffic Simulator Toggle */}
             <button
               id="btn-auto-simulate-toggle"
-              onClick={() => setIsSimulating(!isSimulating)}
+              onClick={handleToggleSimulation}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
                 isSimulating
                   ? 'bg-amber-50 border-amber-300 text-amber-800 ring-2 ring-amber-400/20'
                   : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
               }`}
-              title="Continuously simulate incoming print events from multiple computers"
+              title={isAdmin ? "Continuously simulate incoming print events from multiple computers" : "Admin PIN required to toggle traffic simulation"}
             >
               {isSimulating ? (
                 <>
@@ -162,6 +182,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <>
                   <Play className="w-3.5 h-3.5 text-slate-500" />
                   <span>Auto Simulator</span>
+                  {!isAdmin && <Lock className="w-3 h-3 text-slate-400 ml-0.5" />}
                 </>
               )}
             </button>
@@ -180,11 +201,12 @@ export const Header: React.FC<HeaderProps> = ({
             {/* Register Workstation */}
             <button
               id="btn-add-workstation"
-              onClick={onOpenAddModal}
+              onClick={handleAddNode}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors shadow-xs"
             >
               <PlusCircle className="w-3.5 h-3.5 text-emerald-600" />
               <span>Add Node</span>
+              {!isAdmin && <Lock className="w-3 h-3 text-slate-400 ml-0.5" />}
             </button>
 
             {/* Connect Client Guide */}
@@ -220,6 +242,52 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`} />
             </button>
+
+            {/* Admin PIN & Passcode Security Status Lock */}
+            <div className="flex items-center pl-1 sm:pl-2 border-l border-slate-200">
+              {isAdmin ? (
+                <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-300 rounded-lg p-0.5 shadow-2xs">
+                  <div 
+                    className="flex items-center gap-1.5 px-2 py-1 text-xs font-semibold text-emerald-800"
+                    title="Admin Mode Unlocked: You can add, delete, and alter printers, workstations, and alert rules"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="hidden sm:inline">Admin Mode</span>
+                  </div>
+                  <button
+                    id="btn-admin-change-pin"
+                    onClick={openChangePinModal}
+                    className="p-1 rounded text-emerald-700 hover:bg-emerald-100 hover:text-emerald-900 transition-colors"
+                    title="Change Admin Passcode"
+                  >
+                    <KeyRound className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    id="btn-admin-lock"
+                    onClick={lockAdmin}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+                    title="Lock Admin Mode (Switch to Read-Only Viewer)"
+                  >
+                    <Lock className="w-3 h-3" />
+                    <span>Lock</span>
+                  </button>
+                </div>
+              ) : (
+                <button
+                  id="btn-admin-unlock-trigger"
+                  onClick={() => openAuthModal("Unlock Admin Mode with your PIN to delete, add, or configure printers and fleet settings.")}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-300 transition-all shadow-2xs group"
+                  title="Viewer Mode: Click to enter Admin PIN to unlock full administrative management"
+                >
+                  <Lock className="w-3.5 h-3.5 text-amber-600 group-hover:text-amber-700" />
+                  <span className="hidden sm:inline">Viewer Mode</span>
+                  <span className="sm:hidden">Viewer</span>
+                  <span className="text-[10px] bg-amber-200/90 text-amber-900 px-1.5 py-0.2 rounded font-bold ml-0.5">
+                    Unlock Admin
+                  </span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
 

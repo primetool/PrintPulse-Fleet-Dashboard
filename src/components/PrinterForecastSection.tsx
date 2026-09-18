@@ -292,8 +292,8 @@ export const PrinterForecastSection: React.FC<PrinterForecastSectionProps> = ({
           avgPaperPct += Math.max(0, Math.round(p.paperTrays.tray1CapacityPct - dailyPaperBurn * day));
         });
 
-        dataPoint['Avg Fleet Toner'] = Math.round(avgTonerPct / printers.length);
-        dataPoint['Avg Fleet Paper'] = Math.round(avgPaperPct / printers.length);
+        dataPoint['Avg Fleet Toner'] = Math.round(avgTonerPct / Math.max(printers.length, 1));
+        dataPoint['Avg Fleet Paper'] = Math.round(avgPaperPct / Math.max(printers.length, 1));
       } else {
         // Individual printer detailed consumable curves
         const printer = printers.find((p) => p.id === selectedPrinterId);
@@ -326,6 +326,10 @@ export const PrinterForecastSection: React.FC<PrinterForecastSectionProps> = ({
       return dataPoint;
     });
   }, [printers, forecasts, selectedPrinterId]);
+
+  if (printers.length === 0) {
+    return null;
+  }
 
   return (
     <div id="printer-forecast-container" className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-6">

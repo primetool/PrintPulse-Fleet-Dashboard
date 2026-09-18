@@ -24,6 +24,8 @@ import {
   Check,
   X,
   ExternalLink,
+  Lock,
+  KeyRound,
 } from 'lucide-react';
 import type {
   FleetAlert,
@@ -33,6 +35,7 @@ import type {
   AlertConditionType,
   AlertSeverity,
 } from '../types';
+import { useAdminAuth } from '../context/AdminAuthContext';
 
 interface AlertsTabProps {
   alerts: FleetAlert[];
@@ -61,6 +64,7 @@ export const AlertsTab: React.FC<AlertsTabProps> = ({
   onSendTestEmail,
   onSimulateCondition,
 }) => {
+  const { isAdmin, openAuthModal, requireAdminAction } = useAdminAuth();
   const [activeSubTab, setActiveSubTab] = useState<'active' | 'rules' | 'emails' | 'simulation'>('active');
   const [severityFilter, setSeverityFilter] = useState<'all' | 'critical' | 'warning' | 'info'>('all');
   const [statusFilter, setStatusFilter] = useState<'active' | 'all' | 'resolved'>('active');
@@ -91,29 +95,43 @@ export const AlertsTab: React.FC<AlertsTabProps> = ({
     return true;
   });
 
+  const safeUpdateSettings = (settings: Partial<AlertSettings>) => {
+    requireAdminAction(() => {
+      onUpdateSettings(settings);
+    }, 'Admin Passcode required to modify alert dispatch settings.');
+  };
+
   const handleToggleRule = (ruleId: string) => {
-    const updated = rules.map((r) => (r.id === ruleId ? { ...r, enabled: !r.enabled } : r));
-    onUpdateRules(updated);
+    requireAdminAction(() => {
+      const updated = rules.map((r) => (r.id === ruleId ? { ...r, enabled: !r.enabled } : r));
+      onUpdateRules(updated);
+    }, 'Admin Passcode required to enable or disable alert trigger rules.');
   };
 
   const handleToggleRuleEmail = (ruleId: string) => {
-    const updated = rules.map((r) => (r.id === ruleId ? { ...r, sendEmail: !r.sendEmail } : r));
-    onUpdateRules(updated);
+    requireAdminAction(() => {
+      const updated = rules.map((r) => (r.id === ruleId ? { ...r, sendEmail: !r.sendEmail } : r));
+      onUpdateRules(updated);
+    }, 'Admin Passcode required to toggle email notification dispatches.');
   };
 
   const handleUpdateRuleThreshold = (ruleId: string, val: number) => {
-    const updated = rules.map((r) => (r.id === ruleId ? { ...r, thresholdValue: val } : r));
-    onUpdateRules(updated);
+    requireAdminAction(() => {
+      const updated = rules.map((r) => (r.id === ruleId ? { ...r, thresholdValue: val } : r));
+      onUpdateRules(updated);
+    }, 'Admin Passcode required to adjust alert sensitivity thresholds.');
   };
 
   const handleTriggerSimulation = async (condition: string) => {
-    setSimulatingCondition(condition);
-    try {
-      await onSimulateCondition(condition);
-      setActiveSubTab('active');
-    } finally {
-      setTimeout(() => setSimulatingCondition(null), 500);
-    }
+    requireAdminAction(async () => {
+      setSimulatingCondition(condition);
+      try {
+        await onSimulateCondition(condition);
+        setActiveSubTab('active');
+      } finally {
+        setTimeout(() => setSimulatingCondition(null), 500);
+      }
+    }, 'Admin Passcode required to simulate fleet conditions.');
   };
 
   const handleSendTest = async (type: AlertConditionType) => {

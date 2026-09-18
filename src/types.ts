@@ -23,6 +23,7 @@ export interface ComputerNode {
   totalCostToday: number;
   activeSpoolQueue: number;
   location: string;
+  isDemo?: boolean;
 }
 
 export interface PrinterDevice {
@@ -35,6 +36,7 @@ export interface PrinterDevice {
   connectionType: 'network' | 'usb' | 'wifi';
   status: PrinterStatus;
   statusMessage?: string;
+  isDemo?: boolean;
   tonerLevels: {
     black: number;
     cyan: number;
@@ -237,4 +239,22 @@ export interface IngestionPayload {
     };
     paperTrayCapacityPct?: number;
   }[];
+}
+
+export interface AdminAuthState {
+  isAdmin: boolean;
+  adminToken: string | null;
+  isDefaultPin: boolean;
+  isLoading: boolean;
+  unlockAdmin: (pin: string) => Promise<{ success: boolean; error?: string }>;
+  lockAdmin: () => void;
+  changePin: (newPin: string) => Promise<{ success: boolean; error?: string }>;
+  requireAdminAction: (action: () => void | Promise<void>, promptReason?: string) => void;
+  isAuthModalOpen: boolean;
+  openAuthModal: (reason?: string, pendingAction?: () => void | Promise<void>) => void;
+  closeAuthModal: () => void;
+  authModalReason: string;
+  isChangePinModalOpen: boolean;
+  openChangePinModal: () => void;
+  closeChangePinModal: () => void;
 }

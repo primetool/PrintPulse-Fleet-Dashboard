@@ -32,8 +32,8 @@ const ai = new GoogleGenAI({
   },
 });
 
-// Initial Seed Printers
-let printers: PrinterDevice[] = [
+// Initial Seed Printers Template
+const DEFAULT_DEMO_PRINTERS: PrinterDevice[] = [
   {
     id: "prn-01",
     name: "HP LaserJet Enterprise M608",
@@ -43,6 +43,7 @@ let printers: PrinterDevice[] = [
     ipAddress: "192.168.1.110",
     connectionType: "network",
     status: "ready",
+    isDemo: true,
     tonerLevels: { black: 78, cyan: 0, magenta: 0, yellow: 0 },
     paperTrays: { tray1CapacityPct: 85, tray2CapacityPct: 90 },
     totalPagesPrinted: 148520,
@@ -62,6 +63,7 @@ let printers: PrinterDevice[] = [
     connectionType: "network",
     status: "printing",
     statusMessage: "Printing high-res artwork proofs",
+    isDemo: true,
     tonerLevels: { black: 64, cyan: 42, magenta: 38, yellow: 51 },
     paperTrays: { tray1CapacityPct: 60, tray2CapacityPct: 45, manualFeedPct: 80 },
     totalPagesPrinted: 312450,
@@ -81,6 +83,7 @@ let printers: PrinterDevice[] = [
     ipAddress: "192.168.1.120",
     connectionType: "network",
     status: "ready",
+    isDemo: true,
     tonerLevels: { black: 92, cyan: 88, magenta: 85, yellow: 90 },
     paperTrays: { tray1CapacityPct: 95, tray2CapacityPct: 80 },
     totalPagesPrinted: 89300,
@@ -100,6 +103,7 @@ let printers: PrinterDevice[] = [
     connectionType: "network",
     status: "toner_low",
     statusMessage: "Cyan and Yellow Cartridge below 12%",
+    isDemo: true,
     tonerLevels: { black: 45, cyan: 11, magenta: 24, yellow: 9 },
     paperTrays: { tray1CapacityPct: 40, tray2CapacityPct: 30 },
     totalPagesPrinted: 450120,
@@ -119,6 +123,7 @@ let printers: PrinterDevice[] = [
     connectionType: "network",
     status: "warning",
     statusMessage: "Tray 1 paper misfeed sensor alert",
+    isDemo: true,
     tonerLevels: { black: 28, cyan: 0, magenta: 0, yellow: 0 },
     paperTrays: { tray1CapacityPct: 15, tray2CapacityPct: 0 },
     totalPagesPrinted: 198400,
@@ -129,6 +134,8 @@ let printers: PrinterDevice[] = [
     costPerPageColor: 0.06,
   }
 ];
+
+let printers: PrinterDevice[] = JSON.parse(JSON.stringify(DEFAULT_DEMO_PRINTERS));
 
 // Initial Seed Connected Computer Nodes
 let computerNodes: ComputerNode[] = [
@@ -938,6 +945,90 @@ async function startServer() {
 
   app.use(express.json());
 
+  // --- Admin Security & PIN/Passcode Authorization ---
+  let currentAdminPin = (process.env.ADMIN_PIN || "2026").trim();
+
+  function getExpectedToken(pin: string) {
+    return `pp_adm_${Buffer.from(`printpulse_admin_sec_${pin}`).toString("base64")}`;
+  }
+
+  // Middleware to enforce Admin authorization for mutating printer and fleet data
+  const requireAdminAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const pinHeader = req.headers["x-admin-pin"] as string | undefined;
+    const tokenHeader = req.headers["x-admin-token"] as string | undefined;
+    const authHeader = req.headers["authorization"] as string | undefined;
+
+    const providedToken = tokenHeader || (authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined);
+    const expectedToken = getExpectedToken(currentAdminPin);
+
+    // Accept valid raw PIN or valid signed admin session token
+    if (pinHeader && pinHeader.trim() === currentAdminPin) {
+      return next();
+    }
+    if (providedToken && providedToken.trim() === expectedToken) {
+      return next();
+    }
+
+    return res.status(403).json({
+      error: "Admin authorization required. Only administrators with a valid PIN/Passcode can modify printers and fleet configuration.",
+      requiresAdmin: true
+    });
+  };
+
+  // Verify Admin PIN endpoint
+  app.post("/api/printpulse/auth/verify-pin", (req, res) => {
+    const { pin } = req.body;
+    if (!pin || typeof pin !== "string") {
+      return res.status(400).json({ error: "PIN is required" });
+    }
+
+    if (pin.trim() === currentAdminPin) {
+      const token = getExpectedToken(currentAdminPin);
+      return res.json({
+        success: true,
+        token,
+        message: "Admin authentication successful",
+      });
+    }
+
+    return res.status(401).json({
+      success: false,
+      error: "Incorrect Admin PIN / Passcode. Please check and try again.",
+    });
+  });
+
+  // Check Admin Status endpoint
+  app.get("/api/printpulse/auth/status", (req, res) => {
+    const tokenHeader = req.headers["x-admin-token"] as string | undefined;
+    const pinHeader = req.headers["x-admin-pin"] as string | undefined;
+    const expectedToken = getExpectedToken(currentAdminPin);
+
+    const isAuthenticated = (tokenHeader && tokenHeader.trim() === expectedToken) ||
+                            (pinHeader && pinHeader.trim() === currentAdminPin);
+
+    res.json({
+      authenticated: Boolean(isAuthenticated),
+      isDefaultPin: currentAdminPin === "2026",
+    });
+  });
+
+  // Change Admin PIN endpoint (requires current admin authorization)
+  app.post("/api/printpulse/auth/change-pin", requireAdminAuth, (req, res) => {
+    const { newPin } = req.body;
+    if (!newPin || typeof newPin !== "string" || newPin.trim().length < 4) {
+      return res.status(400).json({ error: "New PIN must be at least 4 characters or digits long." });
+    }
+
+    currentAdminPin = newPin.trim();
+    const token = getExpectedToken(currentAdminPin);
+
+    res.json({
+      success: true,
+      message: "Admin PIN successfully updated.",
+      token,
+    });
+  });
+
   // Real-Time Server-Sent Events (SSE) Stream Endpoint
   app.get("/api/printpulse/events", (req, res) => {
     res.writeHead(200, {
@@ -1049,7 +1140,7 @@ async function startServer() {
   });
 
   // Update Alert Settings (email recipient, thresholds, notification channels)
-  app.post("/api/printpulse/alerts/settings", (req, res) => {
+  app.post("/api/printpulse/alerts/settings", requireAdminAuth, (req, res) => {
     const newSettings: Partial<AlertSettings> = req.body;
     alertSettings = { ...alertSettings, ...newSettings };
     broadcastRealtimeEvent("ALERT_SETTINGS_UPDATED", alertSettings);
@@ -1057,7 +1148,7 @@ async function startServer() {
   });
 
   // Update Alert Rules
-  app.post("/api/printpulse/alerts/rules", (req, res) => {
+  app.post("/api/printpulse/alerts/rules", requireAdminAuth, (req, res) => {
     const { rules } = req.body;
     if (Array.isArray(rules)) {
       alertRules = rules;
@@ -1100,7 +1191,7 @@ async function startServer() {
   });
 
   // Simulate Specific Fleet Alert Conditions (For live demonstration of real-time alerting)
-  app.post("/api/printpulse/alerts/simulate-condition", (req, res) => {
+  app.post("/api/printpulse/alerts/simulate-condition", requireAdminAuth, (req, res) => {
     const { condition } = req.body; // 'paper_jam' | 'printer_offline' | 'high_error_rate' | 'low_toner' | 'workstation_offline'
     
     let createdAlert: FleetAlert | null = null;
@@ -1279,7 +1370,33 @@ async function startServer() {
         // Find matching printer
         let printer = printers.find(p => p.name.toLowerCase().includes(job.printerName.toLowerCase()));
         if (!printer) {
-          printer = printers[0]; // default fallback
+          if (printers.length > 0 && !job.printerName) {
+            printer = printers[0]; // default fallback
+          } else {
+            // Auto-register real printer reported by PrintPulse Windows app
+            const pName = job.printerName || "Network Printer";
+            printer = {
+              id: `prn-${Date.now().toString().slice(-5)}`,
+              name: pName,
+              model: pName,
+              manufacturer: pName.split(" ")[0] || "Network",
+              location: node.location || "Office Floor",
+              ipAddress: node.ipAddress || "192.168.1.100",
+              connectionType: "network",
+              status: "ready",
+              tonerLevels: { black: 95, cyan: 90, magenta: 90, yellow: 90 },
+              paperTrays: { tray1CapacityPct: 90 },
+              totalPagesPrinted: 0,
+              drumLifePercent: 100,
+              maintenanceKitDueInPages: 50000,
+              activeJobsInQueue: 0,
+              costPerPageMono: 0.02,
+              costPerPageColor: 0.08,
+              isDemo: false,
+            };
+            printers.push(printer);
+            broadcastRealtimeEvent("PRINTER_ADDED", { printer });
+          }
         }
 
         const costRate = isColor ? printer.costPerPageColor : printer.costPerPageMono;
@@ -1468,7 +1585,7 @@ async function startServer() {
   });
 
   // Add / Register Computer Node
-  app.post("/api/printpulse/nodes", (req, res) => {
+  app.post("/api/printpulse/nodes", requireAdminAuth, (req, res) => {
     const { hostname, os, osVersion, ipAddress, department, activeUser, location, assignedPrinters } = req.body;
     if (!hostname) {
       return res.status(400).json({ error: "Hostname is required" });
@@ -1499,13 +1616,162 @@ async function startServer() {
     res.status(201).json({ success: true, node: newNode });
   });
 
+  // Remove Computer Node (Admin only)
+  app.delete("/api/printpulse/nodes/:id", requireAdminAuth, (req, res) => {
+    const { id } = req.params;
+    const index = computerNodes.findIndex(n => n.id === id);
+    if (index === -1) {
+      return res.status(404).json({ error: "Workstation node not found" });
+    }
+
+    const [deleted] = computerNodes.splice(index, 1);
+    broadcastRealtimeEvent("NODE_REMOVED", { id, node: deleted });
+    broadcastRealtimeEvent("FLEET_SYNC_PULSE", {
+      metrics: computeFleetMetrics(),
+      nodesCount: computerNodes.length,
+    });
+
+    res.json({ success: true, message: `Node ${deleted.hostname} removed`, deletedId: id });
+  });
+
   // Printers endpoint
   app.get("/api/printpulse/printers", (req, res) => {
     res.json({ printers });
   });
 
+  // Create / Register a new physical printer device
+  app.post("/api/printpulse/printers", requireAdminAuth, (req, res) => {
+    const { name, model, manufacturer, location, ipAddress, connectionType, costPerPageMono, costPerPageColor } = req.body;
+    if (!name || typeof name !== "string" || !name.trim()) {
+      return res.status(400).json({ error: "Printer name is required" });
+    }
+
+    const newPrinter: PrinterDevice = {
+      id: `prn-phys-${Date.now().toString().slice(-6)}`,
+      name: name.trim(),
+      model: model?.trim() || "Standard Office MFP",
+      manufacturer: manufacturer?.trim() || name.split(" ")[0] || "Network",
+      location: location?.trim() || "Main Office Floor",
+      ipAddress: ipAddress?.trim() || "192.168.1." + Math.floor(Math.random() * 150 + 50),
+      connectionType: connectionType || "network",
+      status: "ready",
+      isDemo: false,
+      tonerLevels: { black: 100, cyan: 100, magenta: 100, yellow: 100 },
+      paperTrays: { tray1CapacityPct: 100, tray2CapacityPct: 100 },
+      totalPagesPrinted: 0,
+      drumLifePercent: 100,
+      maintenanceKitDueInPages: 50000,
+      activeJobsInQueue: 0,
+      costPerPageMono: Number(costPerPageMono) || 0.02,
+      costPerPageColor: Number(costPerPageColor) || 0.08,
+    };
+
+    printers.push(newPrinter);
+    broadcastRealtimeEvent("PRINTER_ADDED", { printer: newPrinter });
+    broadcastRealtimeEvent("FLEET_SYNC_PULSE", {
+      metrics: computeFleetMetrics(),
+      printersCount: printers.length,
+    });
+
+    res.status(201).json({ success: true, printer: newPrinter });
+  });
+
+  // Delete a specific printer device
+  app.delete("/api/printpulse/printers/:id", requireAdminAuth, (req, res) => {
+    const { id } = req.params;
+    const index = printers.findIndex(p => p.id === id);
+    if (index === -1) {
+      return res.status(404).json({ error: "Printer not found" });
+    }
+
+    const [deleted] = printers.splice(index, 1);
+
+    // Remove any active alerts tied to this printer
+    fleetAlerts = fleetAlerts.filter(a => a.targetId !== id);
+
+    // Clean up workstation references if assigned
+    computerNodes.forEach(node => {
+      if (node.assignedPrinters) {
+        node.assignedPrinters = node.assignedPrinters.filter(p => p !== deleted.name && p !== id);
+      }
+    });
+
+    broadcastRealtimeEvent("PRINTER_DELETED", { id, printer: deleted });
+    broadcastRealtimeEvent("ALERTS_SYNCED", { alerts: fleetAlerts });
+    broadcastRealtimeEvent("FLEET_SYNC_PULSE", {
+      metrics: computeFleetMetrics(),
+      printersCount: printers.length,
+    });
+
+    res.json({
+      success: true,
+      message: `Printer "${deleted.name}" has been removed from the fleet.`,
+      deletedId: id,
+      remainingCount: printers.length
+    });
+  });
+
+  // Clear all demo/sample printers in batch
+  app.post("/api/printpulse/printers/clear-demo", requireAdminAuth, (req, res) => {
+    const removedPrinters = printers.filter(p => p.isDemo || p.id.startsWith("prn-0"));
+    const removedIds = new Set(removedPrinters.map(p => p.id));
+
+    // Keep only production/custom printers
+    printers = printers.filter(p => !p.isDemo && !p.id.startsWith("prn-0"));
+
+    // Remove demo alerts
+    fleetAlerts = fleetAlerts.filter(a => !removedIds.has(a.targetId));
+
+    // Clean up workstation references
+    const removedNames = new Set(removedPrinters.map(p => p.name));
+    computerNodes.forEach(node => {
+      if (node.assignedPrinters) {
+        node.assignedPrinters = node.assignedPrinters.filter(p => !removedNames.has(p) && !removedIds.has(p));
+      }
+    });
+
+    broadcastRealtimeEvent("ALL_DEMO_PRINTERS_CLEARED", {
+      removedCount: removedPrinters.length,
+      remainingCount: printers.length,
+      printers
+    });
+    broadcastRealtimeEvent("ALERTS_SYNCED", { alerts: fleetAlerts });
+    broadcastRealtimeEvent("FLEET_SYNC_PULSE", {
+      metrics: computeFleetMetrics(),
+      printersCount: printers.length,
+    });
+
+    res.json({
+      success: true,
+      message: `Successfully removed ${removedPrinters.length} demo printer(s).`,
+      removedCount: removedPrinters.length,
+      remainingCount: printers.length,
+      printers
+    });
+  });
+
+  // Restore default demo printers for testing
+  app.post("/api/printpulse/printers/restore-demo", requireAdminAuth, (req, res) => {
+    // Filter out existing ones with matching IDs
+    const existingIds = new Set(printers.map(p => p.id));
+    const toRestore = DEFAULT_DEMO_PRINTERS.filter(p => !existingIds.has(p.id));
+    printers.push(...JSON.parse(JSON.stringify(toRestore)));
+
+    broadcastRealtimeEvent("PRINTERS_RESTORED", { printers });
+    broadcastRealtimeEvent("FLEET_SYNC_PULSE", {
+      metrics: computeFleetMetrics(),
+      printersCount: printers.length,
+    });
+
+    res.json({
+      success: true,
+      message: `Restored ${toRestore.length} demo printer(s).`,
+      printers
+    });
+  });
+
   // Refill toner / maintain printer
-  app.post("/api/printpulse/printers/:id/maintenance", (req, res) => {
+  app.post("/api/printpulse/printers/:id/maintenance", requireAdminAuth, (req, res) => {
     const { id } = req.params;
     const { action } = req.body; // 'refill_toner' | 'reload_paper' | 'clear_jam' | 'full_service'
 
@@ -1572,6 +1838,9 @@ async function startServer() {
     
     // Pick compatible printer
     const availablePrinters = printers.filter(p => p.status !== "offline");
+    if (availablePrinters.length === 0) {
+      return res.status(400).json({ error: "No active printers available in fleet. Please add a physical printer or restore demo printers." });
+    }
     const selectedPrinter = availablePrinters[Math.floor(Math.random() * availablePrinters.length)];
 
     const pageCount = Math.floor(Math.random() * (randomDoc.maxP - randomDoc.minP + 1)) + randomDoc.minP;
@@ -2087,7 +2356,7 @@ lpoptions -p HP_LaserJet_Enterprise_M608 -l | grep -i "Duplex"
   });
 
   // Reset telemetry to fresh realistic seed
-  app.post("/api/printpulse/reset", (req, res) => {
+  app.post("/api/printpulse/reset", requireAdminAuth, (req, res) => {
     // Reset seed data
     printers.forEach(p => {
       p.status = "ready";
