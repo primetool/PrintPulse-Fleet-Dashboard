@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
-    "build:standalone": "npm run build && esbuild server.ts --bundle --platform=node --format=cjs --external:vite --outfile=dist/server-standalone.cjs",
+    "build:standalone": "npm run build && esbuild server.ts --bundle --platform=node --format=cjs --define:process.env.NODE_ENV='\"production\"' --external:vite --outfile=dist/server-standalone.cjs",
     "build:exe": "npm run build:standalone && PKG_CACHE_PATH=~/.pkg-cache npx pkg@5.8.1 dist/server-standalone.cjs --target node18-win-x64 --output PrintPulse.exe",
     "start": "node dist/server.cjs",
     "preview": "vite preview",

@@ -1,8 +1,15 @@
 node_modules/
 build/
-dist/
+/dist/
 coverage/
 .DS_Store
 *.log
 .env*
 !.env.example
+
+# Windows standalone distribution artifacts
+!windows-distribution/
+!windows-distribution/**
+!PrintPulse.exe
+!PrintPulse-Windows.zip
+
