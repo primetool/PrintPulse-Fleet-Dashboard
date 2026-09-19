@@ -3,6 +3,8 @@ import path from "path";
 import fs from "fs";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+
+const currentDir = typeof __dirname !== "undefined" ? __dirname : process.cwd();
 import type {
   ComputerNode,
   PrinterDevice,
@@ -2390,6 +2392,31 @@ lpoptions -p HP_LaserJet_Enterprise_M608 -l | grep -i "Duplex"
     res.json({ success: true, message: "Telemetry reset to initial state" });
   });
 
+  // Windows Distribution Download Endpoints
+  const serveDownloadFile = (req: express.Request, res: express.Response, fileName: string) => {
+    const candidatePaths = [
+      path.join(process.cwd(), fileName),
+      path.join(process.cwd(), "windows-distribution", fileName),
+      path.join(currentDir, fileName),
+      path.join(currentDir, "windows-distribution", fileName),
+    ];
+    const targetFile = candidatePaths.find(p => fs.existsSync(p));
+    if (targetFile) {
+      res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+      res.setHeader("Content-Type", "application/octet-stream");
+      return res.sendFile(targetFile);
+    }
+    return res.status(404).json({ error: `File ${fileName} is not available for download on this server.` });
+  };
+
+  app.get(["/api/download/PrintPulse.exe", "/download/PrintPulse.exe"], (req, res) => {
+    serveDownloadFile(req, res, "PrintPulse.exe");
+  });
+
+  app.get(["/api/download/PrintPulse-Windows.zip", "/download/PrintPulse-Windows.zip"], (req, res) => {
+    serveDownloadFile(req, res, "PrintPulse-Windows.zip");
+  });
+
   // Vite middleware in development, static in production
   const isDev = process.env.NODE_ENV === "development" && !(process as any).pkg;
   if (isDev) {
@@ -2405,11 +2432,11 @@ lpoptions -p HP_LaserJet_Enterprise_M608 -l | grep -i "Duplex"
     const candidatePaths = [
       path.join(process.cwd(), "dist"),
       path.join(exeDir, "dist"),
-      path.join(__dirname, "dist"),
-      path.join(__dirname, "..", "dist"),
+      path.join(currentDir, "dist"),
+      path.join(currentDir, "..", "dist"),
       exeDir,
       process.cwd(),
-      __dirname,
+      currentDir,
     ];
     const distPath = candidatePaths.find(p => fs.existsSync(path.join(p, "index.html"))) || path.join(process.cwd(), "dist");
 

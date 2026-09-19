@@ -10,7 +10,10 @@ import {
   CheckCircle2,
   Code,
   ShieldCheck,
-  Zap
+  Zap,
+  Download,
+  Package,
+  FolderArchive
 } from 'lucide-react';
 import type { PrinterDevice } from '../types';
 
@@ -27,7 +30,7 @@ export const AgentSetupModal: React.FC<AgentSetupModalProps> = ({
   printers,
   onSendTestPayload,
 }) => {
-  const [activeLang, setActiveLang] = useState<'powershell' | 'bash' | 'curl' | 'sandbox'>('sandbox');
+  const [activeLang, setActiveLang] = useState<'windows-app' | 'sandbox' | 'powershell' | 'bash' | 'curl'>('windows-app');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   // Sandbox State
@@ -193,18 +196,27 @@ report_print_job("Design_Specs_2026.pdf", "Canon imageRUNNER ADVANCE C5550i", 12
         </div>
 
         {/* Tab selection */}
-        <div className="flex border-b border-slate-200 bg-slate-50 px-6 gap-2 pt-2">
+        <div className="flex border-b border-slate-200 bg-slate-50 px-6 gap-2 pt-2 overflow-x-auto">
+          <button
+            onClick={() => setActiveLang('windows-app')}
+            className={`px-3 py-2 text-xs font-semibold rounded-t-lg transition-colors border-b-2 whitespace-nowrap flex items-center gap-1.5 ${
+              activeLang === 'windows-app' ? 'border-emerald-600 text-emerald-700 bg-white shadow-2xs' : 'border-transparent text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Package className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Windows Desktop App (.exe)</span>
+          </button>
           <button
             onClick={() => setActiveLang('sandbox')}
-            className={`px-3 py-2 text-xs font-semibold rounded-t-lg transition-colors border-b-2 ${
+            className={`px-3 py-2 text-xs font-semibold rounded-t-lg transition-colors border-b-2 whitespace-nowrap ${
               activeLang === 'sandbox' ? 'border-blue-600 text-blue-600 bg-white' : 'border-transparent text-slate-600 hover:text-slate-900'
             }`}
           >
-            🧪 Live Ingestion Sandbox
+            🧪 Live Sandbox
           </button>
           <button
             onClick={() => setActiveLang('powershell')}
-            className={`px-3 py-2 text-xs font-semibold rounded-t-lg transition-colors border-b-2 ${
+            className={`px-3 py-2 text-xs font-semibold rounded-t-lg transition-colors border-b-2 whitespace-nowrap ${
               activeLang === 'powershell' ? 'border-blue-600 text-blue-600 bg-white' : 'border-transparent text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -212,15 +224,15 @@ report_print_job("Design_Specs_2026.pdf", "Canon imageRUNNER ADVANCE C5550i", 12
           </button>
           <button
             onClick={() => setActiveLang('bash')}
-            className={`px-3 py-2 text-xs font-semibold rounded-t-lg transition-colors border-b-2 ${
+            className={`px-3 py-2 text-xs font-semibold rounded-t-lg transition-colors border-b-2 whitespace-nowrap ${
               activeLang === 'bash' ? 'border-blue-600 text-blue-600 bg-white' : 'border-transparent text-slate-600 hover:text-slate-900'
             }`}
           >
-             macOS / 🐧 Linux (Python)
+             macOS / 🐧 Linux
           </button>
           <button
             onClick={() => setActiveLang('curl')}
-            className={`px-3 py-2 text-xs font-semibold rounded-t-lg transition-colors border-b-2 ${
+            className={`px-3 py-2 text-xs font-semibold rounded-t-lg transition-colors border-b-2 whitespace-nowrap ${
               activeLang === 'curl' ? 'border-blue-600 text-blue-600 bg-white' : 'border-transparent text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -230,6 +242,97 @@ report_print_job("Design_Specs_2026.pdf", "Canon imageRUNNER ADVANCE C5550i", 12
 
         {/* Content Body */}
         <div className="p-6 overflow-y-auto space-y-4">
+
+          {activeLang === 'windows-app' && (
+            <div className="space-y-4">
+              <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                    <Package className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-emerald-950">Standalone Windows Desktop Hub</h4>
+                    <p className="text-xs text-emerald-800 mt-0.5 leading-relaxed">
+                      Run PrintPulse natively on any Windows 10/11 or Windows Server computer without needing Node.js or terminal knowledge.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Direct Download Action Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <a
+                  href="/api/download/PrintPulse-Windows.zip"
+                  download="PrintPulse-Windows.zip"
+                  className="p-4 rounded-xl border-2 border-emerald-500 bg-emerald-50/40 hover:bg-emerald-50 transition-all group flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <FolderArchive className="w-4 h-4 text-emerald-600" />
+                        <span className="text-xs font-bold text-emerald-900">Complete Package (.zip)</span>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-800">Recommended</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 leading-normal">
+                      Includes <strong>PrintPulse.exe</strong>, automated installer (<code>Install-PrintPulse.bat</code>), Start Menu & Desktop shortcut creator, and uninstaller.
+                    </p>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-emerald-200/80 flex items-center justify-between text-xs font-bold text-emerald-700 group-hover:text-emerald-800">
+                    <span className="flex items-center gap-1.5">
+                      <Download className="w-3.5 h-3.5" /> Download ZIP (~16 MB)
+                    </span>
+                    <span>↓</span>
+                  </div>
+                </a>
+
+                <a
+                  href="/api/download/PrintPulse.exe"
+                  download="PrintPulse.exe"
+                  className="p-4 rounded-xl border border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 transition-all group flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Package className="w-4 h-4 text-blue-600" />
+                      <span className="text-xs font-bold text-slate-900">Direct Executable (.exe)</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 leading-normal">
+                      Single standalone binary. Double-click to immediately launch the local server at <code>http://localhost:3000</code>.
+                    </p>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-slate-200 flex items-center justify-between text-xs font-bold text-blue-600 group-hover:text-blue-700">
+                    <span className="flex items-center gap-1.5">
+                      <Download className="w-3.5 h-3.5" /> Download EXE (~38 MB)
+                    </span>
+                    <span>↓</span>
+                  </div>
+                </a>
+              </div>
+
+              {/* Quick Setup Guide */}
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-2.5">
+                <h5 className="font-bold text-slate-800 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>How to Install & Run on Windows:</span>
+                </h5>
+                <ol className="list-decimal list-inside space-y-1 text-slate-600 pl-1 text-[11px] leading-relaxed">
+                  <li>Download <strong>PrintPulse-Windows.zip</strong> and extract it on your computer.</li>
+                  <li>Right-click <strong>Install-PrintPulse.bat</strong> and click <em>Run</em> (no Admin rights required).</li>
+                  <li>The installer will copy the files to <code>%LOCALAPPDATA%\PrintPulse</code> and create desktop shortcuts.</li>
+                  <li>PrintPulse will open automatically at <code>http://localhost:3000</code>.</li>
+                  <li>Log in with the default Administrator PIN: <code className="bg-white px-1.5 py-0.5 rounded border font-mono font-bold text-slate-900">2026</code>.</li>
+                </ol>
+              </div>
+
+              {/* Troubleshooting Note */}
+              <div className="p-3 rounded-lg bg-amber-50/80 border border-amber-200 text-[11px] text-amber-900 flex items-start gap-2">
+                <div className="shrink-0 mt-0.5">ℹ️</div>
+                <div>
+                  <strong>Tip for GitHub ZIP Downloads:</strong> If you downloaded the repository code as a ZIP from GitHub, git repositories do not bundle large pre-compiled binaries in source archives. The updated <code>Install-PrintPulse.bat</code> now has built-in auto-detection and can download the executable for you automatically, or you can download <strong>PrintPulse.exe</strong> above.
+                </div>
+              </div>
+            </div>
+          )}
           
           {activeLang === 'sandbox' && (
             <form onSubmit={handleRunSandbox} className="space-y-4">

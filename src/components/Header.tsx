@@ -18,7 +18,8 @@ import {
   Unlock,
   KeyRound,
   ShieldCheck,
-  Shield
+  Shield,
+  Download
 } from 'lucide-react';
 import type { FleetMetrics, RealtimeSyncStatus } from '../types';
 import { useAdminAuth } from '../context/AdminAuthContext';
@@ -218,6 +219,19 @@ export const Header: React.FC<HeaderProps> = ({
               <Terminal className="w-3.5 h-3.5" />
               <span>Connect Agent</span>
             </button>
+
+            {/* Download Windows App (.zip) */}
+            <a
+              id="btn-download-windows-package"
+              href="/api/download/PrintPulse-Windows.zip"
+              download="PrintPulse-Windows.zip"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-500 shadow-xs transition-all"
+              title="Download complete Windows distribution package (.zip with PrintPulse.exe and installer)"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Windows App</span>
+              <span className="sm:hidden">App</span>
+            </a>
 
             {/* Notification Center Quick Icon */}
             <button

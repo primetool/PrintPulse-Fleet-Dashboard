@@ -8,13 +8,18 @@ echo                     PRINTPULSE FLEET TELEMETRY SERVER
 echo ==============================================================================
 echo.
 
-set "APP_DIR=%~dp0"
-set "TARGET_EXE="
+set "SCRIPT_DIR=%~dp0"
+if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
 
-if exist "%APP_DIR%PrintPulse.exe" (
-    set "TARGET_EXE=%APP_DIR%PrintPulse.exe"
-) else if exist "%APP_DIR%windows-distribution\PrintPulse.exe" (
-    set "TARGET_EXE=%APP_DIR%windows-distribution\PrintPulse.exe"
+set "TARGET_EXE="
+if exist "%SCRIPT_DIR%\PrintPulse.exe" (
+    set "TARGET_EXE=%SCRIPT_DIR%\PrintPulse.exe"
+) else if exist "%SCRIPT_DIR%\windows-distribution\PrintPulse.exe" (
+    set "TARGET_EXE=%SCRIPT_DIR%\windows-distribution\PrintPulse.exe"
+) else if exist "%SCRIPT_DIR%\..\PrintPulse.exe" (
+    set "TARGET_EXE=%SCRIPT_DIR%\..\PrintPulse.exe"
+) else if exist "%SCRIPT_DIR%\..\windows-distribution\PrintPulse.exe" (
+    set "TARGET_EXE=%SCRIPT_DIR%\..\windows-distribution\PrintPulse.exe"
 ) else if exist "%LOCALAPPDATA%\PrintPulse\PrintPulse.exe" (
     set "TARGET_EXE=%LOCALAPPDATA%\PrintPulse\PrintPulse.exe"
 )
@@ -23,8 +28,9 @@ if "%TARGET_EXE%"=="" (
     echo [ERROR] PrintPulse.exe was not found.
     echo.
     echo To resolve this:
-    echo   1. If you just downloaded the repository, run 'Install-PrintPulse.bat'
-    echo   2. Or extract 'PrintPulse-Windows.zip'
+    echo   1. Run 'Install-PrintPulse.bat' to automatically download or install PrintPulse.
+    echo   2. Or download directly from:
+    echo      https://ais-pre-by2z5qbzbvlyqsugohtwr3-386799138494.europe-west2.run.app/api/download/PrintPulse.exe
     echo   3. Or compile it by running 'build-exe.bat'
     echo.
     pause
@@ -41,7 +47,7 @@ echo.
 
 start "" "%TARGET_EXE%"
 
-REM Give server a second to spin up, then open browser
+REM Give server a moment to initialize, then open browser
 timeout /t 2 /nobreak >nul
 if exist "%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe" (
     start "" "%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe" --app=http://localhost:3000
