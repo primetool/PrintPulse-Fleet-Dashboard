@@ -32,6 +32,28 @@ if exist "%SCRIPT_DIR%\PrintPulse.exe" (
 ) else if exist "%SCRIPT_DIR%\..\windows-distribution\PrintPulse.exe" (
     set "EXE_PATH=%SCRIPT_DIR%\..\windows-distribution\PrintPulse.exe"
     set "EXE_SOURCE=%SCRIPT_DIR%\..\windows-distribution"
+) else if exist "%USERPROFILE%\Downloads\PrintPulse.exe" (
+    set "EXE_PATH=%USERPROFILE%\Downloads\PrintPulse.exe"
+    set "EXE_SOURCE=%USERPROFILE%\Downloads"
+) else if exist "%USERPROFILE%\Downloads\PrintPulse-Windows\PrintPulse.exe" (
+    set "EXE_PATH=%USERPROFILE%\Downloads\PrintPulse-Windows\PrintPulse.exe"
+    set "EXE_SOURCE=%USERPROFILE%\Downloads\PrintPulse-Windows"
+) else if exist "%USERPROFILE%\Downloads\PrintPulse-Windows\windows-distribution\PrintPulse.exe" (
+    set "EXE_PATH=%USERPROFILE%\Downloads\PrintPulse-Windows\windows-distribution\PrintPulse.exe"
+    set "EXE_SOURCE=%USERPROFILE%\Downloads\PrintPulse-Windows\windows-distribution"
+)
+
+REM If PrintPulse.exe not found directly, search Downloads folder and subfolders
+if "%EXE_PATH%"=="" (
+    for /d %%D in ("%USERPROFILE%\Downloads\*PrintPulse*") do (
+        if exist "%%D\PrintPulse.exe" (
+            set "EXE_PATH=%%D\PrintPulse.exe"
+            set "EXE_SOURCE=%%D"
+        ) else if exist "%%D\windows-distribution\PrintPulse.exe" (
+            set "EXE_PATH=%%D\windows-distribution\PrintPulse.exe"
+            set "EXE_SOURCE=%%D\windows-distribution"
+        )
+    )
 )
 
 REM If PrintPulse.exe not found directly, check if PrintPulse-Windows.zip archive is present
@@ -40,16 +62,31 @@ if "%EXE_PATH%"=="" (
     if exist "%SCRIPT_DIR%\PrintPulse-Windows.zip" set "ZIP_PATH=%SCRIPT_DIR%\PrintPulse-Windows.zip"
     if exist "%SCRIPT_DIR%\..\PrintPulse-Windows.zip" set "ZIP_PATH=%SCRIPT_DIR%\..\PrintPulse-Windows.zip"
     if exist "%SCRIPT_DIR%\..\..\PrintPulse-Windows.zip" set "ZIP_PATH=%SCRIPT_DIR%\..\..\PrintPulse-Windows.zip"
+    if exist "%USERPROFILE%\Downloads\PrintPulse-Windows.zip" set "ZIP_PATH=%USERPROFILE%\Downloads\PrintPulse-Windows.zip"
+
+    if "!ZIP_PATH!"=="" (
+        for %%F in ("%USERPROFILE%\Downloads\*PrintPulse*.zip") do (
+            if exist "%%F" set "ZIP_PATH=%%F"
+        )
+    )
+    if "!ZIP_PATH!"=="" (
+        for %%F in ("%USERPROFILE%\Downloads\*Windows*.zip") do (
+            if exist "%%F" set "ZIP_PATH=%%F"
+        )
+    )
 
     if not "!ZIP_PATH!"=="" (
-        echo [INFO] Found '!ZIP_PATH!'. Extracting PrintPulse binary...
-        powershell -NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -Path '!ZIP_PATH!' -DestinationPath '%SCRIPT_DIR%' -Force"
-        if exist "%SCRIPT_DIR%\PrintPulse.exe" (
+        echo [INFO] Found PrintPulse package archive: '!ZIP_PATH!'
+        echo [INFO] Extracting PrintPulse binary and runtime files...
+        powershell -NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -Path '!ZIP_PATH!' -DestinationPath '%SCRIPT_DIR%\temp_extract' -Force"
+        if exist "%SCRIPT_DIR%\temp_extract\PrintPulse.exe" (
+            copy /y "%SCRIPT_DIR%\temp_extract\PrintPulse.exe" "%SCRIPT_DIR%\PrintPulse.exe" >nul 2>nul
             set "EXE_PATH=%SCRIPT_DIR%\PrintPulse.exe"
-            set "EXE_SOURCE=%SCRIPT_DIR%"
-        ) else if exist "%SCRIPT_DIR%\windows-distribution\PrintPulse.exe" (
-            set "EXE_PATH=%SCRIPT_DIR%\windows-distribution\PrintPulse.exe"
-            set "EXE_SOURCE=%SCRIPT_DIR%\windows-distribution"
+            set "EXE_SOURCE=%SCRIPT_DIR%\temp_extract"
+        ) else if exist "%SCRIPT_DIR%\temp_extract\windows-distribution\PrintPulse.exe" (
+            copy /y "%SCRIPT_DIR%\temp_extract\windows-distribution\PrintPulse.exe" "%SCRIPT_DIR%\PrintPulse.exe" >nul 2>nul
+            set "EXE_PATH=%SCRIPT_DIR%\PrintPulse.exe"
+            set "EXE_SOURCE=%SCRIPT_DIR%\temp_extract\windows-distribution"
         )
     )
 )
@@ -57,50 +94,82 @@ if "%EXE_PATH%"=="" (
 REM If PrintPulse.exe is still missing (e.g. downloaded source archive from GitHub without binary)
 if "%EXE_PATH%"=="" (
     echo ==============================================================================
-    echo   [NOTICE] PrintPulse.exe was not detected in the local folder.
+    echo   [NOTICE] PrintPulse.exe was not detected in the current folder.
     echo ==============================================================================
     echo.
-    echo   When downloading the project source code as a ZIP from GitHub, large
-    echo   binary executables are omitted from the source archive.
+    echo   If you already downloaded 'PrintPulse-Windows.zip' in your Downloads folder:
+    echo     1. Right-click 'PrintPulse-Windows.zip' and select 'Extract All...'.
+    echo     2. Open the extracted folder and run 'Install-PrintPulse.bat'.
     echo.
-    echo   Choose how you would like to obtain PrintPulse.exe:
+    echo   Choose how you would like to proceed:
     echo.
-    echo   [1] Auto-download pre-compiled PrintPulse.exe from server (Recommended)
-    echo   [2] Compile PrintPulse.exe from local source code (requires Node.js)
-    echo   [3] Open browser download link
-    echo   [4] Exit installer
+    echo   [1] Scan/Browse for downloaded PrintPulse-Windows.zip or PrintPulse.exe
+    echo   [2] Quick Portable Setup (Downloads standalone runner, 100%% automatic)
+    echo   [3] Compile PrintPulse.exe from local source code (requires Node.js)
+    echo   [4] Open Dashboard in Browser (to download PrintPulse-Windows.zip)
+    echo   [5] Exit installer
     echo.
-    set /p "USER_CHOICE=Enter choice [1-4, Default=1]: "
+    set /p "USER_CHOICE=Enter choice [1-5, Default=1]: "
     if "!USER_CHOICE!"=="" set "USER_CHOICE=1"
 
     if "!USER_CHOICE!"=="1" (
         echo.
-        echo [INFO] Downloading pre-compiled PrintPulse.exe (~38 MB)...
-        powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-          "$ProgressPreference = 'SilentlyContinue'; ^
-           [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; ^
-           try { ^
-             (New-Object Net.WebClient).DownloadFile('https://ais-pre-by2z5qbzbvlyqsugohtwr3-386799138494.europe-west2.run.app/api/download/PrintPulse.exe', '%SCRIPT_DIR%\PrintPulse.exe'); ^
-             Write-Host '[SUCCESS] Download complete.' -ForegroundColor Green; ^
-           } catch { ^
-             Write-Host '[ERROR] Download failed: ' $_.Exception.Message -ForegroundColor Red; ^
-           }"
-
-        if exist "%SCRIPT_DIR%\PrintPulse.exe" (
-            set "EXE_PATH=%SCRIPT_DIR%\PrintPulse.exe"
+        echo Searching common download locations...
+        set "FOUND_PATH="
+        for %%P in (
+            "%USERPROFILE%\Downloads\PrintPulse-Windows.zip"
+            "%USERPROFILE%\Downloads\PrintPulse.exe"
+            "%USERPROFILE%\Desktop\PrintPulse-Windows.zip"
+            "%USERPROFILE%\Desktop\PrintPulse.exe"
+        ) do (
+            if exist "%%~P" (
+                echo [FOUND] %%~P
+                set "FOUND_PATH=%%~P"
+            )
+        )
+        if "!FOUND_PATH!"=="" (
+            echo.
+            set /p "CUSTOM_PATH=Enter the full path to PrintPulse-Windows.zip or PrintPulse.exe: "
+            if exist "!CUSTOM_PATH!" set "FOUND_PATH=!CUSTOM_PATH!"
+        )
+        if not "!FOUND_PATH!"=="" (
+            if "!FOUND_PATH:~-4!"==".zip" (
+                echo [INFO] Extracting '!FOUND_PATH!'...
+                powershell -NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -Path '!FOUND_PATH!' -DestinationPath '%SCRIPT_DIR%' -Force"
+                if exist "%SCRIPT_DIR%\PrintPulse.exe" set "EXE_PATH=%SCRIPT_DIR%\PrintPulse.exe"
+                if exist "%SCRIPT_DIR%\windows-distribution\PrintPulse.exe" set "EXE_PATH=%SCRIPT_DIR%\windows-distribution\PrintPulse.exe"
+            ) else (
+                set "EXE_PATH=!FOUND_PATH!"
+            )
             set "EXE_SOURCE=%SCRIPT_DIR%"
-        ) else (
-            echo.
-            echo [ERROR] Automatic download could not be completed.
-            echo Please download PrintPulse.exe manually from:
-            echo   https://ais-pre-by2z5qbzbvlyqsugohtwr3-386799138494.europe-west2.run.app/api/download/PrintPulse.exe
-            echo and place it in:
-            echo   %SCRIPT_DIR%
-            echo.
+        )
+        if "!EXE_PATH!"=="" (
+            echo [ERROR] Could not locate PrintPulse.exe.
             pause
             exit /b 1
         )
     ) else if "!USER_CHOICE!"=="2" (
+        echo.
+        echo [INFO] Performing Quick Portable Setup...
+        echo Downloading official standalone Node runner from nodejs.org...
+        powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+          "$ProgressPreference = 'SilentlyContinue'; ^
+           [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; ^
+           try { ^
+             (New-Object Net.WebClient).DownloadFile('https://nodejs.org/dist/v18.20.4/win-x64/node.exe', '%SCRIPT_DIR%\node.exe'); ^
+             Write-Host '[SUCCESS] Download complete.' -ForegroundColor Green; ^
+           } catch { ^
+             Write-Host '[ERROR] Download failed: ' $_.Exception.Message -ForegroundColor Red; ^
+           }"
+        if exist "%SCRIPT_DIR%\node.exe" (
+            echo [SUCCESS] Portable runner ready!
+            set "PORTABLE_NODE=%SCRIPT_DIR%\node.exe"
+        ) else (
+            echo [ERROR] Could not download portable runner.
+            pause
+            exit /b 1
+        )
+    ) else if "!USER_CHOICE!"=="3" (
         echo.
         echo [INFO] Attempting to build PrintPulse.exe from source...
         if exist "%SCRIPT_DIR%\build-exe.bat" (
@@ -124,10 +193,11 @@ if "%EXE_PATH%"=="" (
             pause
             exit /b 1
         )
-    ) else if "!USER_CHOICE!"=="3" (
-        start https://ais-pre-by2z5qbzbvlyqsugohtwr3-386799138494.europe-west2.run.app/api/download/PrintPulse-Windows.zip
-        echo Opened download link in your default browser.
-        echo Extract the downloaded package and run Install-PrintPulse.bat.
+    ) else if "!USER_CHOICE!"=="4" (
+        start https://ais-dev-by2z5qbzbvlyqsugohtwr3-386799138494.europe-west2.run.app/
+        echo Opened PrintPulse Cloud Hub in your default browser.
+        echo In the top bar, click 'Windows App' or 'Download ZIP' to save PrintPulse-Windows.zip.
+        echo Once downloaded, extract the ZIP and run Install-PrintPulse.bat.
         pause
         exit /b 0
     ) else (

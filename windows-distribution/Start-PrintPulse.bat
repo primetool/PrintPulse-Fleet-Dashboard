@@ -22,17 +22,49 @@ if exist "%SCRIPT_DIR%\PrintPulse.exe" (
     set "TARGET_EXE=%SCRIPT_DIR%\..\windows-distribution\PrintPulse.exe"
 ) else if exist "%LOCALAPPDATA%\PrintPulse\PrintPulse.exe" (
     set "TARGET_EXE=%LOCALAPPDATA%\PrintPulse\PrintPulse.exe"
+) else if exist "%USERPROFILE%\Downloads\PrintPulse.exe" (
+    set "TARGET_EXE=%USERPROFILE%\Downloads\PrintPulse.exe"
+) else if exist "%USERPROFILE%\Downloads\PrintPulse-Windows\PrintPulse.exe" (
+    set "TARGET_EXE=%USERPROFILE%\Downloads\PrintPulse-Windows\PrintPulse.exe"
+) else if exist "%USERPROFILE%\Downloads\PrintPulse-Windows\windows-distribution\PrintPulse.exe" (
+    set "TARGET_EXE=%USERPROFILE%\Downloads\PrintPulse-Windows\windows-distribution\PrintPulse.exe"
 )
 
+REM Search inside Downloads subdirectories
 if "%TARGET_EXE%"=="" (
-    echo [ERROR] PrintPulse.exe was not found.
+    for /d %%D in ("%USERPROFILE%\Downloads\*PrintPulse*") do (
+        if exist "%%D\PrintPulse.exe" set "TARGET_EXE=%%D\PrintPulse.exe"
+        if exist "%%D\windows-distribution\PrintPulse.exe" set "TARGET_EXE=%%D\windows-distribution\PrintPulse.exe"
+    )
+)
+
+set "USE_NODE="
+if "%TARGET_EXE%"=="" (
+    if exist "%SCRIPT_DIR%\node.exe" (
+        set "USE_NODE=%SCRIPT_DIR%\node.exe"
+    ) else if exist "%LOCALAPPDATA%\PrintPulse\node.exe" (
+        set "USE_NODE=%LOCALAPPDATA%\PrintPulse\node.exe"
+    ) else (
+        where node >nul 2>nul
+        if !ERRORLEVEL! EQU 0 set "USE_NODE=node"
+    )
+)
+
+if "%TARGET_EXE%"=="" if "%USE_NODE%"=="" (
+    echo ==============================================================================
+    echo [ERROR] PrintPulse.exe was not detected in this folder.
+    echo ==============================================================================
     echo.
-    echo To resolve this:
-    echo   1. Run 'Install-PrintPulse.bat' to automatically download or install PrintPulse.
-    echo   2. Or download directly from:
-    echo      https://ais-pre-by2z5qbzbvlyqsugohtwr3-386799138494.europe-west2.run.app/api/download/PrintPulse.exe
-    echo   3. Or compile it by running 'build-exe.bat'
+    echo   If you downloaded 'PrintPulse-Windows.zip':
+    echo     1. Right-click 'PrintPulse-Windows.zip' in Downloads and click 'Extract All...'
+    echo     2. Open the extracted folder and run 'Start-PrintPulse.bat' or 'Install-PrintPulse.bat'
     echo.
+    echo   Launching Install-PrintPulse.bat to assist you...
+    echo.
+    if exist "%SCRIPT_DIR%\Install-PrintPulse.bat" (
+        call "%SCRIPT_DIR%\Install-PrintPulse.bat"
+        exit /b 0
+    )
     pause
     exit /b 1
 )
@@ -45,7 +77,19 @@ echo   Press Ctrl+C at any time in this window to stop the server.
 echo ==============================================================================
 echo.
 
-start "" "%TARGET_EXE%"
+if not "%TARGET_EXE%"=="" (
+    start "" "%TARGET_EXE%"
+) else (
+    set "BUNDLE="
+    if exist "%SCRIPT_DIR%\dist\server-standalone.cjs" set "BUNDLE=%SCRIPT_DIR%\dist\server-standalone.cjs"
+    if exist "%SCRIPT_DIR%\dist\server.cjs" set "BUNDLE=%SCRIPT_DIR%\dist\server.cjs"
+    if exist "%LOCALAPPDATA%\PrintPulse\dist\server-standalone.cjs" set "BUNDLE=%LOCALAPPDATA%\PrintPulse\dist\server-standalone.cjs"
+    if not "!BUNDLE!"=="" (
+        start "" "%USE_NODE%" "!BUNDLE!"
+    ) else (
+        start "" "%USE_NODE%" "%SCRIPT_DIR%\server.ts"
+    )
+)
 
 REM Give server a moment to initialize, then open browser
 timeout /t 2 /nobreak >nul
