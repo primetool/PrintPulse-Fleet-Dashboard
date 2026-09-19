@@ -1,12 +1,13 @@
 # PrintPulse Windows distribution
 
-This ZIP is a portable Windows package. Extract the entire ZIP before running it.
+Extract the entire ZIP, then run `Install-PrintPulse.bat`.
 
-1. Run `Start-PrintPulse.bat`.
-2. The server starts from the included `PrintPulse.exe`.
-3. The browser opens at http://localhost:3000.
-4. Keep the server window open while using the dashboard.
+The installer copies PrintPulse to `%LOCALAPPDATA%\PrintPulse`, copies the complete dashboard `dist` folder, and creates:
 
-The package must contain `PrintPulse.exe` and the complete `dist` folder. Do not move the executable out of this folder.
+- A Desktop shortcut named **PrintPulse Fleet Hub**
+- A Start Menu shortcut under **Programs > PrintPulse**
+- An uninstall shortcut in the same Start Menu folder
 
-If Windows SmartScreen blocks the unsigned executable, choose More info, then Run anyway, if you trust the source.
+The shortcut starts the server and opens http://localhost:3000.
+
+Do not move `PrintPulse.exe` out of the extracted folder before running the installer. If Windows SmartScreen blocks the unsigned executable, choose **More info**, then **Run anyway**, if you trust the source.
